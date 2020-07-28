@@ -252,29 +252,38 @@ namespace pvd
 
 	bool RtmpStream::CheckStreamKey(const std::shared_ptr<const RtmpChunkHeader> &header)
 	{
-		for (auto const& user: _server_config.GetUserList())
+		if (_server_config.GetUserList().empty())
 		{
-			// logti("Checking user: %s -> %s (%s)", user.GetStreamKey().GetValue().CStr(), user.GetStreamName().GetValue().CStr(), _stream_key.CStr());
-			if (_stream_key == user.GetStreamKey().GetValue())
-			{
-				logti("Supplied stream key (%s) matches user %s", _stream_key.CStr(), user.GetStreamName().GetValue().CStr());
-				_stream_name = user.GetStreamName().GetValue();
-				break;
-			}
+			logti("No users defined, setting stream name to provided key: %s", _stream_key.CStr());
+			// If no users are configured, use default behaviour
+			_stream_name = _stream_key;
 		}
-
-		if (_stream_name.IsEmpty())
+		else
 		{
-			logtw("Supplied stream key (%s) was not recognised, rejecting connection", _stream_key);
+			for (auto const& user: _server_config.GetUserList())
+			{
+				// logti("Checking user: %s -> %s (%s)", user.GetStreamKey().GetValue().CStr(), user.GetStreamName().GetValue().CStr(), _stream_key.CStr());
+				if (_stream_key == user.GetStreamKey().GetValue())
+				{
+					logti("Supplied stream key (%s) matches user %s", _stream_key.CStr(), user.GetStreamName().GetValue().CStr());
+					_stream_name = user.GetStreamName().GetValue();
+					break;
+				}
+			}
 
-			//Reject
-			SendAmfOnStatus(header->basic_header.stream_id,
-							_rtmp_stream_id,
-							(char *)"error",
-							(char *)"NetStream.Publish.Rejected",
-							(char *)"Authentication Failed.", _client_id);
+			if (_stream_name.IsEmpty())
+			{
+				logtw("Supplied stream key (%s) was not recognised, rejecting connection", _stream_key.CStr());
 
-			return false;
+				//Reject
+				SendAmfOnStatus(header->basic_header.stream_id,
+								_rtmp_stream_id,
+								(char *)"error",
+								(char *)"NetStream.Publish.Rejected",
+								(char *)"Authentication Failed.", _client_id);
+
+				return false;
+			}
 		}
 
 		_import_chunk->SetStreamName(_stream_name);
