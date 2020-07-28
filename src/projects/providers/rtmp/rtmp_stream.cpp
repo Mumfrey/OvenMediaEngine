@@ -51,9 +51,9 @@ Process of publishing
 
 namespace pvd
 {
-	std::shared_ptr<RtmpStream> RtmpStream::Create(StreamSourceType source_type, uint32_t client_id, const std::shared_ptr<ov::Socket> &client_socket, const std::shared_ptr<PushProvider> &provider)
+	std::shared_ptr<RtmpStream> RtmpStream::Create(StreamSourceType source_type, uint32_t client_id, const std::shared_ptr<ov::Socket> &client_socket, const std::shared_ptr<PushProvider> &provider, const cfg::Server &server_config)
 	{
-		auto stream = std::make_shared<RtmpStream>(source_type, client_id, client_socket, provider);
+		auto stream = std::make_shared<RtmpStream>(source_type, client_id, client_socket, provider, server_config);
 		if(stream != nullptr)
 		{
 			stream->Start();
@@ -61,8 +61,8 @@ namespace pvd
 		return stream;
 	}
 
-	RtmpStream::RtmpStream(StreamSourceType source_type, uint32_t client_id, std::shared_ptr<ov::Socket> client_socket, const std::shared_ptr<PushProvider> &provider)
-		: PushStream(source_type, client_id, provider)
+	RtmpStream::RtmpStream(StreamSourceType source_type, uint32_t client_id, std::shared_ptr<ov::Socket> client_socket, const std::shared_ptr<PushProvider> &provider, const cfg::Server &server_config)
+		: PushStream(source_type, client_id, provider), _server_config(server_config)
 	{
 		_remote = client_socket;
 		_import_chunk = std::make_shared<RtmpImportChunk>(RTMP_DEFAULT_CHUNK_SIZE);
@@ -250,9 +250,40 @@ namespace pvd
 		}
 	}
 
+	bool RtmpStream::CheckStreamKey(const std::shared_ptr<const RtmpChunkHeader> &header)
+	{
+		for (auto const& user: _server_config.GetUserList())
+		{
+			// logti("Checking user: %s -> %s (%s)", user.GetStreamKey().GetValue().CStr(), user.GetStreamName().GetValue().CStr(), _stream_key.CStr());
+			if (_stream_key == user.GetStreamKey().GetValue())
+			{
+				logti("Supplied stream key (%s) matches user %s", _stream_key.CStr(), user.GetStreamName().GetValue().CStr());
+				_stream_name = user.GetStreamName().GetValue();
+				break;
+			}
+		}
+
+		if (_stream_name.IsEmpty())
+		{
+			logtw("Supplied stream key (%s) was not recognised, rejecting connection", _stream_key);
+
+			//Reject
+			SendAmfOnStatus(header->basic_header.stream_id,
+							_rtmp_stream_id,
+							(char *)"error",
+							(char *)"NetStream.Publish.Rejected",
+							(char *)"Authentication Failed.", _client_id);
+
+			return false;
+		}
+
+		_import_chunk->SetStreamName(_stream_name);
+		return true;
+	}
+
 	void RtmpStream::OnAmfFCPublish(const std::shared_ptr<const RtmpChunkHeader> &header, AmfDocument &document, double transaction_id)
 	{
-		if (_stream_name.IsEmpty() && document.GetProperty(3) != nullptr &&
+		if (_stream_key.IsEmpty() && document.GetProperty(3) != nullptr &&
 			document.GetProperty(3)->GetType() == AmfDataType::String)
 		{
 			// TODO: check if the chunk stream id is already exist, and generates new rtmp_stream_id and client_id.
@@ -261,8 +292,8 @@ namespace pvd
 				logte("SendAmfOnFCPublish Fail");
 				return;
 			}
-			_stream_name = document.GetProperty(3)->GetString();
-			_import_chunk->SetStreamName(_stream_name);
+			_stream_key = document.GetProperty(3)->GetString();
+			this->CheckStreamKey(header);
 		}
 	}
 
@@ -272,8 +303,11 @@ namespace pvd
 		{
 			if (document.GetProperty(3) != nullptr && document.GetProperty(3)->GetType() == AmfDataType::String)
 			{
-				_stream_name = document.GetProperty(3)->GetString();
-				_import_chunk->SetStreamName(_stream_name);
+				_stream_key = document.GetProperty(3)->GetString();
+				if (!this->CheckStreamKey(header))
+				{
+					return;
+				}
 			}
 			else
 			{

@@ -88,7 +88,7 @@ namespace pvd
 	void RtmpProvider::OnConnected(const std::shared_ptr<ov::Socket> &remote)
 	{
 		auto channel_id = remote->GetId();
-		auto stream = RtmpStream::Create(StreamSourceType::Rtmp, channel_id, remote, GetSharedPtrAs<pvd::PushProvider>());
+		auto stream = RtmpStream::Create(StreamSourceType::Rtmp, channel_id, remote, GetSharedPtrAs<pvd::PushProvider>(), GetServerConfig());
 
 		logti("A RTMP client has connected from %d - %s", remote->GetId(), remote->ToString().CStr());
 

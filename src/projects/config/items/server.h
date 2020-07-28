@@ -11,6 +11,7 @@
 #include "bind/bind.h"
 #include "p2p/p2p.h"
 #include "virtual_hosts/virtual_hosts.h"
+#include "common/users.h"
 namespace cfg
 {
 	enum class ServerType
@@ -35,6 +36,8 @@ namespace cfg
 		CFG_DECLARE_REF_GETTER_OF(GetP2P, _p2p)
 
 		CFG_DECLARE_REF_GETTER_OF(GetVirtualHostList, _virtual_hosts.GetVirtualHostList())
+
+		CFG_DECLARE_REF_GETTER_OF(GetUserList, _users.GetUserList())
 
 		// Deprecated - It has a bug
 		bool GetVirtualHostByName(ov::String name, cfg::VirtualHost &vhost) const
@@ -80,6 +83,8 @@ namespace cfg
 			RegisterValue<Optional>("P2P", &_p2p);
 
 			RegisterValue<Optional>("VirtualHosts", &_virtual_hosts);
+      
+			RegisterValue<Optional>("Users", &_users);
 		}
 
 		ov::String _version;
@@ -95,5 +100,7 @@ namespace cfg
 		P2P _p2p;
 
 		VirtualHosts _virtual_hosts;
+    
+		Users _users;
 	};
 }  // namespace cfg

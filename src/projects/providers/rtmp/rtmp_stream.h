@@ -33,9 +33,9 @@ namespace pvd
 	class RtmpStream : public pvd::PushStream
 	{
 	public:
-		static std::shared_ptr<RtmpStream> Create(StreamSourceType source_type, uint32_t channel_id, const std::shared_ptr<ov::Socket> &client_socket, const std::shared_ptr<PushProvider> &provider);
+		static std::shared_ptr<RtmpStream> Create(StreamSourceType source_type, uint32_t channel_id, const std::shared_ptr<ov::Socket> &client_socket, const std::shared_ptr<PushProvider> &provider, const cfg::Server &server_config);
 		
-		explicit RtmpStream(StreamSourceType source_type, uint32_t channel_id, std::shared_ptr<ov::Socket> client_socket, const std::shared_ptr<PushProvider> &provider);
+		explicit RtmpStream(StreamSourceType source_type, uint32_t channel_id, std::shared_ptr<ov::Socket> client_socket, const std::shared_ptr<PushProvider> &provider, const cfg::Server &server_config);
 		~RtmpStream() final;
 
 		bool Stop() override;
@@ -167,5 +167,10 @@ namespace pvd
 		uint32_t _previous_last_audio_timestamp = 0;
 		uint32_t _video_frame_count = 0;
 		uint32_t _audio_frame_count = 0;
+
+		const cfg::Server _server_config;
+		ov::String _stream_key;
+
+		bool CheckStreamKey(const std::shared_ptr<const RtmpChunkHeader> &header);
 	};
 }
