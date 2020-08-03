@@ -65,5 +65,14 @@ namespace cfg
 		// key: XML file name
 		// value: version number
 		std::map<ov::String, int> _supported_xml;
+		
+	public:
+		std::shared_ptr<Users> GetUsers() noexcept
+		{
+			return _users;
+		}
+	protected:
+		std::shared_ptr<Users> _users;
+
 	};
 }  // namespace cfg

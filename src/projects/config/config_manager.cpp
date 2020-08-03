@@ -54,6 +54,11 @@ namespace cfg
 			return false;
 		}
 
+		ov::String user_config_path = ov::PathManager::Combine(config_path, "Users.xml");
+		logti("Trying to load users... (%s)", user_config_path.CStr());
+		_users = std::make_shared<cfg::Users>();
+		_users->ParseFile(user_config_path);
+
 		_config_path = config_path;
 
 		return result;

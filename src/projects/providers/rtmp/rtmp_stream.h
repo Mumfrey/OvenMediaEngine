@@ -167,5 +167,8 @@ namespace pvd
 		uint32_t _previous_last_audio_timestamp = 0;
 		uint32_t _video_frame_count = 0;
 		uint32_t _audio_frame_count = 0;
+
+		ov::String _stream_key;
+		bool CheckStreamKey(const std::shared_ptr<const RtmpChunkHeader> &header);
 	};
 }

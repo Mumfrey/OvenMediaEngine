@@ -16,6 +16,8 @@
 #include <base/media_route/media_type.h>
 #include <base/info/media_extradata.h>
 
+#include <config/config_manager.h>
+
 /*
 Process of publishing 
 
@@ -252,7 +254,7 @@ namespace pvd
 
 	void RtmpStream::OnAmfFCPublish(const std::shared_ptr<const RtmpChunkHeader> &header, AmfDocument &document, double transaction_id)
 	{
-		if (_stream_name.IsEmpty() && document.GetProperty(3) != nullptr &&
+		if (_stream_key.IsEmpty() && document.GetProperty(3) != nullptr &&
 			document.GetProperty(3)->GetType() == AmfDataType::String)
 		{
 			// TODO: check if the chunk stream id is already exist, and generates new rtmp_stream_id and client_id.
@@ -261,19 +263,22 @@ namespace pvd
 				logte("SendAmfOnFCPublish Fail");
 				return;
 			}
-			_stream_name = document.GetProperty(3)->GetString();
-			_import_chunk->SetStreamName(_stream_name);
+			_stream_key = document.GetProperty(3)->GetString();
+			this->CheckStreamKey(header);
 		}
 	}
 
 	void RtmpStream::OnAmfPublish(const std::shared_ptr<const RtmpChunkHeader> &header, AmfDocument &document, double transaction_id)
 	{
-		if (_stream_name.IsEmpty())
+		if (_stream_key.IsEmpty())
 		{
 			if (document.GetProperty(3) != nullptr && document.GetProperty(3)->GetType() == AmfDataType::String)
 			{
-				_stream_name = document.GetProperty(3)->GetString();
-				_import_chunk->SetStreamName(_stream_name);
+				_stream_key = document.GetProperty(3)->GetString();
+				if (!this->CheckStreamKey(header))
+				{
+					return;
+				}
 			}
 			else
 			{
@@ -1794,5 +1799,48 @@ namespace pvd
 		}
 
 		return codec_string;
+	}
+
+	bool RtmpStream::CheckStreamKey(const std::shared_ptr<const RtmpChunkHeader> &header)
+	{
+		std::shared_ptr<cfg::Users> users = cfg::ConfigManager::Instance()->GetUsers();
+		users->Reload();
+		
+		if (users->GetUserList().empty())
+		{
+			logti("No users defined, setting stream name to provided key: %s", _stream_key.CStr());
+			// If no users are configured, use default behaviour
+			_stream_name = _stream_key;
+		}
+		else
+		{
+			for (auto const& user: users->GetUserList())
+			{
+				// logti("Checking user: %s -> %s (%s)", user.GetStreamKey().GetValue().CStr(), user.GetStreamName().GetValue().CStr(), _stream_key.CStr());
+				if (_stream_key == user.GetStreamKey().GetValue())
+				{
+					logti("Supplied stream key (%s) matches user %s", _stream_key.CStr(), user.GetStreamName().GetValue().CStr());
+					_stream_name = user.GetStreamName().GetValue();
+					break;
+				}
+			}
+
+			if (_stream_name.IsEmpty())
+			{
+				logtw("Supplied stream key (%s) was not recognised, rejecting connection", _stream_key.CStr());
+
+				//Reject
+				SendAmfOnStatus(header->basic_header.stream_id,
+								_rtmp_stream_id,
+								(char *)"error",
+								(char *)"NetStream.Publish.Rejected",
+								(char *)"Authentication Failed.", _client_id);
+
+				return false;
+			}
+		}
+
+		_import_chunk->SetStreamName(_stream_name);
+		return true;
 	}
 }
